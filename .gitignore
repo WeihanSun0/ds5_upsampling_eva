@@ -1,0 +1,8 @@
+dat/
+build/
+bin/
+eva/base/
+lib/
+.vscode/
+lib/opencv_world412.dll
+lib/opencv_world412d.dll
