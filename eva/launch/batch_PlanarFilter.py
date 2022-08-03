@@ -1,8 +1,8 @@
 import subprocess
 import os
 
-app_type = "Debug"
-# app_type = "Release"
+# app_type = "Debug"
+app_type = "Release"
 
 rootPath = os.getcwd()
 binPath = "bin/Windows_64"
@@ -40,11 +40,9 @@ if __name__ == '__main__':
             cmd = "%s %s %s %s %s %s %s" % (app, guide_file, flood_file, gt_file, cam_file, normal_file, output_folder)
             # print(cmd)
             subprocess.run(cmd)
-            exit(0)
             # spot
             output_folder = "%s\\%05d\\spot" % (folderOut, fn)
             if not os.path.exists(output_folder):
                 os.makedirs(output_folder)
             cmd = "%s %s %s %s %s %s %s" % (app, guide_file, spot_file, gt_file, cam_file, normal_file, output_folder)
             subprocess.run(cmd)
-            exit(0)

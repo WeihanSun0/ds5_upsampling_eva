@@ -19,45 +19,17 @@ using namespace std;
 #define SHOW_TIME 
 
 const string rootPath = "../../";
-const string strDataPath = rootPath + "dat/sample";
-const string strGuide = strDataPath + "/0001_rgb_img.png";
+const string strDataPath = rootPath + "dat/real/hand_test";
+
 const string strFloodPc = strDataPath + "/0001_flood_pc.tiff";
 const string strSpotPc = strDataPath + "/0001_spot_pc.tiff";
 const string strParam = rootPath + "dat/real/camParam/camera_calib/param.txt";
 
 
-void viewInputData(const cv::Mat& imgGuide, const cv::Mat& pcFlood, const cv::Mat& pcSpot, 
-                    float cx, float cy, float fx, float fy)
-{
- // convert point cloud to depthmap
-    cv::Mat dmapFlood = pc2detph(pcFlood, imgGuide.size(), cx, cy, fx, fy);
-    cv::Mat dmapSpot = pc2detph(pcSpot, imgGuide.size(), cx, cy, fx, fy);
 
-    // show input 
-    double minVal, maxVal;
-    cv::minMaxLoc(dmapFlood, &minVal, &maxVal);
-    cv::Mat colorDmapFlood = z2colormap(dmapFlood, minVal, maxVal);
-    cv::minMaxLoc(dmapSpot, &minVal, &maxVal);
-    cv::Mat colorDmapSpot = z2colormap(dmapSpot, minVal, maxVal);
-
-    cv::Mat imgMaskFlood = cv::Mat::zeros(dmapFlood.size(), dmapFlood.type());
-    cv::Mat imgMaskSpot = cv::Mat::zeros(dmapSpot.size(), dmapSpot.type());
-    imgMaskFlood.setTo(1.0, dmapFlood != 0.0);
-    imgMaskSpot.setTo(1.0, dmapSpot != 0.0);
-    cv::Mat imgGuideMapFlood = markSparseDepth(imgGuide, colorDmapFlood, imgMaskFlood, 3);
-    cv::Mat imgGuideMapSpot = markSparseDepth(imgGuide, colorDmapSpot, imgMaskSpot, 3);
-
-    cv::imshow("input Flood", imgGuideMapFlood);
-    cv::imshow("input Spot", imgGuideMapSpot);
-    cv::waitKey(0);
-}
-
-cv::Mat visualization(const cv::Mat& guide, const cv::Mat& pcFlood, const cv::Mat& pcSpot, const cv::Mat& dense, const cv::Mat& conf,
+cv::Mat visualization(const cv::Mat& guide, const cv::Mat& dmapFlood, const cv::Mat& dmapSpot, const cv::Mat& dense, const cv::Mat& conf,
                     float cx, float cy, float fx, float fy, int mode)
 {
-    cv::Mat dmapFlood = pc2detph(pcFlood, guide.size(), cx, cy, fx, fy);
-    cv::Mat dmapSpot = pc2detph(pcSpot, guide.size(), cx, cy, fx, fy);
-
     // input 
     double minVal, maxVal;
     cv::minMaxLoc(dmapFlood, &minVal, &maxVal);
@@ -89,8 +61,17 @@ cv::Mat visualization(const cv::Mat& guide, const cv::Mat& pcFlood, const cv::Ma
 
 int main(int argc, char* argv[])
 {
+    // file names
+    int frame_num = 0;
+    char szFN[255];
+    sprintf(szFN, "%s/%08d_rgb_gray_img.png", strDataPath.c_str(), frame_num);
+    string strGuide = string(szFN);
+    sprintf(szFN, "%s/%08d_spot_depth_pc.exr", strDataPath.c_str(), frame_num);
+    string strSpotPc = string(szFN);
+    sprintf(szFN, "%s/%08d_flood_depth_pc.exr", strDataPath.c_str(), frame_num);
+    string strFloodPc = string(szFN);
     // read dat
-    cv::Mat imgGuide = cv::imread(strGuide, cv::IMREAD_GRAYSCALE);
+    cv::Mat imgGuide = cv::imread(strGuide, -1);
     cv::Mat pcFlood = cv::imread(strFloodPc, -1);
     cv::Mat pcSpot = cv::imread(strSpotPc, -1);
 
@@ -123,7 +104,8 @@ int main(int argc, char* argv[])
         t_start = chrono::system_clock::now();
 #endif 
         // 
-        dc.set_upsampling_parameters(fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot); if (mode == '1') {
+        dc.set_upsampling_parameters(fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot); 
+        if (mode == '1') {
             dc.run(imgGuide, pcFlood, cv::Mat(), dense, conf);
         } else if (mode == '2') {
             dc.run(imgGuide, cv::Mat(), pcSpot, dense, conf);
@@ -136,10 +118,12 @@ int main(int argc, char* argv[])
         }
 #ifdef SHOW_TIME
         t_end = chrono::system_clock::now();
-        double elapsed = chrono::duration_cast<chrono::milliseconds>(t_end - t_start).count();
-        cout << "Upsampling total time = " << elapsed << " [ms]" << endl;
+        double elapsed = chrono::duration_cast<chrono::microseconds>(t_end - t_start).count();
+        cout << "\033[31;43mUpsampling total time = " << elapsed << " [us]\033[0m" << endl;
 #endif
-        imgShow = visualization(imgGuide, pcFlood, pcSpot, dense, conf, cx, cy, fx, fy, mode);
+        cv::Mat dmapFlood = dc.get_flood_depthMap();
+        cv::Mat dmapSpot = dc.get_spot_depthMap();
+        imgShow = visualization(imgGuide, dmapFlood, dmapSpot, dense, conf, cx, cy, fx, fy, mode);
         cv::imshow("show", imgShow);
         char c= cv::waitKey(100);
         switch (c)

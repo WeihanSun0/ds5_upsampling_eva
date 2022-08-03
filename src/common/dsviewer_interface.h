@@ -68,9 +68,6 @@ inline cv::Mat pc2detph(const cv::Mat& xyz, const cv::Size& sz,
 	if (xyz.type() == CV_32FC3) {
 		for (int y = 0; y < xyz.rows; ++y) {
 			for (int x = 0; x < xyz.cols; ++x) {
-				std::cout << xyz.at<cv::Vec3f>(y, x)[0] << ", "
-						<< xyz.at<cv::Vec3f>(y, x)[1] << ", "
-						<<  xyz.at<cv::Vec3f>(y, x)[2] << std::endl;
 				float z = xyz.at<cv::Vec3f>(y,x)[2];
 				float uf = ((xyz.at<cv::Vec3f>(y, x)[0] * fx / z) + cx) * scale;
 				float vf = ((xyz.at<cv::Vec3f>(y, x)[1] * fy / z) + cy) * scale;
@@ -179,4 +176,17 @@ inline cv::Mat pc2detph1(const cv::Mat& xyz, const cv::Size& sz,
 		}
 	}
 	return sparsedepth;
+}
+
+void save_depth2txt(const cv::Mat& img, const std::string& fn)
+{
+	std::fstream fs;
+	fs.open(fn, std::ios::out);
+	for (int j = 0; j < img.rows; j++) {
+		for (int i = 0; i < img.cols; i++) {
+			float z = img.at<float>(j, i);
+			fs << z << std::endl;
+		}
+	}
+	fs.close();
 }

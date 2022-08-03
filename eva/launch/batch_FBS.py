@@ -3,8 +3,8 @@ import subprocess
 import os
 
 APP_NAME="FBS"
-app_type = "Debug"
-# app_type = "Release"
+# app_type = "Debug"
+app_type = "Release"
 
 rootPath = os.getcwd()
 binPath = "bin/Windows_64"

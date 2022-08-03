@@ -30,7 +30,7 @@ PRIVATE
     ${OpenCV_LIBS}
 )
 
-add_executable(test_fix_hand) # test fix hand shift
+add_executable(test_fix_hand) # test fix hand shift by sim data
 
 target_sources(test_fix_hand
 PRIVATE 
@@ -42,3 +42,4 @@ PRIVATE
     common
     ${OpenCV_LIBS}
 )
+

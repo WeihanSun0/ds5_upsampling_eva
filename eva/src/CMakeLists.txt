@@ -1,4 +1,4 @@
-add_executable(eva_mk_pc)
+add_executable(eva_mk_pc) # make sparse pc from gt for test
 
 include_directories(../common)
 

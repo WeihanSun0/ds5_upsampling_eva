@@ -49,7 +49,7 @@ int main(int argc, char * argv[])
     eva.set_edge(imgGray, 2);
     // upsampling 
     int count = 0; // frame count
-    int best_frame = 5; // frame num for best performance 
+    int best_frame = 1; // frame num for best performance 
     upsampling dc;
     cv::Rect roi; // process region, full resolution for only definition
     cv::Mat dense, conf;  // result
