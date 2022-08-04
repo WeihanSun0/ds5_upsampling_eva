@@ -14,6 +14,7 @@
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <chrono>
+#include <thread>
 using namespace std;
 
 #define SHOW_TIME 
@@ -25,10 +26,10 @@ const string strFloodPc = strDataPath + "/0001_flood_pc.tiff";
 const string strSpotPc = strDataPath + "/0001_spot_pc.tiff";
 const string strParam = rootPath + "dat/real/camParam/camera_calib/param.txt";
 
+float g_FPS = 0.0;
 
-
-cv::Mat visualization(const cv::Mat& guide, const cv::Mat& dmapFlood, const cv::Mat& dmapSpot, const cv::Mat& dense, const cv::Mat& conf,
-                    float cx, float cy, float fx, float fy, int mode)
+cv::Mat visualization(const cv::Mat& guide, const cv::Mat& dmapFlood, const cv::Mat& dmapSpot,
+                        const cv::Mat& dense, const cv::Mat& conf)
 {
     // input 
     double minVal, maxVal;
@@ -51,7 +52,9 @@ cv::Mat visualization(const cv::Mat& guide, const cv::Mat& dmapFlood, const cv::
     vector<cv::Mat> vecImgs;
     vector<string> vecLabel;
     vecImgs.push_back(imgGuideMapFlood);
-    vecLabel.push_back("flood");
+    char szLabel[255];
+    sprintf(szLabel, "flood (FPS = %.2f)", g_FPS);
+    vecLabel.push_back(szLabel);
     vecImgs.push_back(imgGuideMapSpot);
     vecLabel.push_back("spot");
     vecImgs.push_back(imgOverlapDense);
@@ -87,24 +90,42 @@ int main(int argc, char* argv[])
     // upsampling
     upsampling dc;
     dc.set_cam_paramters(cx, cy, fx, fy);
-    double fgs_lambda_flood = 24.0;
-	double fgs_sigma_flood = 8;
-	double fgs_lambda_spot = 700;
-    double fgs_sigma_spot = 5;
 
+    // get default parameters
+    float fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot;
+    dc.get_default_upsampling_parameters(fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot);
+    int edge_dilate_size, canny_thresh1, canny_thresh2, flood_range;
+    float edge_thresh;
+    dc.get_default_preprocessing_parameters(edge_dilate_size, edge_thresh, canny_thresh1, canny_thresh2, flood_range);
+    int iEdge_thresh = edge_thresh * 100;
+    int iFgs_lambda_flood = (int)fgs_lambda_flood;
+    int iFgs_simga_flood = (int)fgs_sigma_flood;
     //show results
     cv::Mat dense, conf, imgShow;
     cv::namedWindow("show");
+    cv::createTrackbar("dilate size", "show", &edge_dilate_size, 20); // 3~20
+    cv::createTrackbar("canny thresh1", "show", &canny_thresh1, 255); // 0~255
+    cv::createTrackbar("canny thresh2", "show", &canny_thresh2, 255); // 0~255
+    cv::createTrackbar("edge_thresh", "show", &iEdge_thresh, 400); // 0~200
+    cv::createTrackbar("flood_range", "show", &flood_range, 40); // 0~200
+    cv::createTrackbar("fgs_lambda", "show", &iFgs_lambda_flood, 300);
+    cv::createTrackbar("fgs_sigma", "show", &iFgs_simga_flood, 20);
+
+
     char mode = '1'; // 1: flood 2: spot 3: flood + spot
 #ifdef SHOW_TIME
     chrono::system_clock::time_point t_start, t_end; 
 #endif
     while(1) {
+        edge_thresh = (float)iEdge_thresh/100;
+        fgs_lambda_flood = (float)iFgs_lambda_flood;
+        fgs_sigma_flood = (float)iFgs_simga_flood;
+        dc.set_upsampling_parameters(fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot); 
+        dc.set_preprocessing_parameters(edge_dilate_size, edge_thresh, canny_thresh1, canny_thresh2, flood_range);
 #ifdef SHOW_TIME
         t_start = chrono::system_clock::now();
 #endif 
         // 
-        dc.set_upsampling_parameters(fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot); 
         if (mode == '1') {
             dc.run(imgGuide, pcFlood, cv::Mat(), dense, conf);
         } else if (mode == '2') {
@@ -120,10 +141,11 @@ int main(int argc, char* argv[])
         t_end = chrono::system_clock::now();
         double elapsed = chrono::duration_cast<chrono::microseconds>(t_end - t_start).count();
         cout << "\033[31;43mUpsampling total time = " << elapsed << " [us]\033[0m" << endl;
+        g_FPS = (float)1000/elapsed*1000;
 #endif
         cv::Mat dmapFlood = dc.get_flood_depthMap();
         cv::Mat dmapSpot = dc.get_spot_depthMap();
-        imgShow = visualization(imgGuide, dmapFlood, dmapSpot, dense, conf, cx, cy, fx, fy, mode);
+        imgShow = visualization(imgGuide, dmapFlood, dmapSpot, dense, conf);
         cv::imshow("show", imgShow);
         char c= cv::waitKey(100);
         switch (c)
