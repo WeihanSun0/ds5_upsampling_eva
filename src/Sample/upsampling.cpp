@@ -4,6 +4,10 @@
 #include <math.h>
 // #define SHOW_TIME
 
+/**
+ * @brief Construct a new upsampling::upsampling object
+ * 
+ */
 upsampling::upsampling()
 {
 	this->m_flood_mask = cv::Mat::zeros(cv::Size(guide_width, guide_height), CV_32FC1);
@@ -16,6 +20,10 @@ upsampling::upsampling()
 	this->m_guide_edge = cv::Mat::ones(cv::Size(guide_width, guide_height), CV_32FC1);
 }
 
+/**
+ * @brief clear buffers
+ * 
+ */
 void upsampling::clear()
 {
 	this->m_flood_dmap.setTo(0.0);
@@ -30,6 +38,12 @@ void upsampling::clear()
 	this->m_spot_roi = cv::Rect(0, 0, this->guide_width, this->guide_height);
 }
 
+/**
+ * @brief initialization 
+ * 
+ * @param dense 
+ * @param conf 
+ */
 void upsampling::initialization(cv::Mat& dense, cv::Mat& conf)
 {
 	this->clear();
@@ -45,21 +59,15 @@ void upsampling::initialization(cv::Mat& dense, cv::Mat& conf)
 }
 
 /**
- * @brief Fast Global Smoothing for sparse input 
+ * @brief FGS filter processing
  * 
- * @param guide : full resolution guide image 
- * @param sparse : sparse input
- * @param mask : mask for sparse 
- * @param fgs_lambda 
- * @param fgs_simga_color 
- * @param fgs_lambda_attenuation 
- * @param fgs_num_iter 
- * @param dense : dense result 
- * @param conf : confidence 
+ * @param sparse: sparse depth 
+ * @param mask: mask  
+ * @param roi: ROI 
+ * @param dense: output dense depth 
+ * @param conf: output confidence 
  */
-void upsampling::fgs_f(const cv::Mat & guide, const cv::Mat & sparse, const cv::Mat& mask, 
-					float fgs_lambda, float fgs_simga_color, float fgs_lambda_attenuation, 
-					float fgs_num_iter, const cv::Rect& roi, 
+void upsampling::fgs_f(const cv::Mat & sparse, const cv::Mat& mask, const cv::Rect& roi, 
 					cv::Mat& dense, cv::Mat& conf)
 {
 	cv::Mat matSparse, matMask;
@@ -70,6 +78,13 @@ void upsampling::fgs_f(const cv::Mat & guide, const cv::Mat & sparse, const cv::
 	conf(roi) = matMask;
 }
 
+/**
+ * @brief Sobel Edge detection
+ * 
+ * @param src: source image 
+ * @param tapsize_sobel: tap size 
+ * @return cv::Mat: edge image 
+ */
 inline cv::Mat getSobelAbs(const cv::Mat& src, int tapsize_sobel)
 {
 	cv::Mat h_sobels, v_sobels;
@@ -79,6 +94,14 @@ inline cv::Mat getSobelAbs(const cv::Mat& src, int tapsize_sobel)
 	return dst;
 }
 
+/**
+ * @brief mark upsampling valid rect (square)
+ * 
+ * @param img: valid map 
+ * @param u: x-axis position
+ * @param v: y-axis position 
+ * @param r: range 
+ */
 inline void mark_block(cv::Mat& img, int u, int v, int r)
 {
 	int start_u = u-r;
@@ -92,6 +115,11 @@ inline void mark_block(cv::Mat& img, int u, int v, int r)
 	img(cv::Rect(start_u, start_v, end_u-start_u, end_v-start_v)) = 1.0;
 }
 
+/**
+ * @brief depth information processing for flood
+ * 
+ * @param pc_flood: input flood point cloud 
+ */
 void upsampling::flood_depth_proc(const cv::Mat& pc_flood)
 {
 	cv::Mat pc_flood_cpy;
@@ -146,13 +174,20 @@ void upsampling::flood_depth_proc(const cv::Mat& pc_flood)
 			}	
 		}
 	});
-	// mark roi
-	// this->m_flood_roi.x = minX;
-	// this->m_flood_roi.y = minY;
-	// this->m_flood_roi.width = maxX - minX;
-	// this->m_flood_roi.height = maxY - minY;
+#if 0 // skipped for create FGS Filter parallelly
+	//* mark roi
+	this->m_flood_roi.x = minX;
+	this->m_flood_roi.y = minY;
+	this->m_flood_roi.width = maxX - minX;
+	this->m_flood_roi.height = maxY - minY;
+#endif
 }
 
+/**
+ * @brief create FGS filter
+ * 
+ * @param guide: guide image 
+ */
 void upsampling::flood_guide_proc2(const cv::Mat& guide)
 {
 	cv::Rect roi = this->m_flood_roi;
@@ -161,6 +196,11 @@ void upsampling::flood_guide_proc2(const cv::Mat& guide)
 							this->fgs_lambda_attenuation_, this->fgs_num_iter_flood);
 }
 
+/**
+ * @brief guide image processing for flood
+ * 
+ * @param guide: guide image 
+ */
 void upsampling::flood_guide_proc(const cv::Mat& guide)
 {
 	if (this->guide_edge_proc_on) {
@@ -174,25 +214,37 @@ void upsampling::flood_guide_proc(const cv::Mat& guide)
 	}
 }
 
+/**
+ * @brief preprocessing for flood
+ * 
+ * @param img_guide: input guide image
+ * @param pc_flood: input flood pointcloud 
+ */
 void upsampling::flood_preprocessing(const cv::Mat& img_guide, const cv::Mat& pc_flood)
 {
 	std::thread th3([this, img_guide]()->void{
-		this->flood_guide_proc2(img_guide);
+		this->flood_guide_proc2(img_guide); //create FGS filter
 	});
 	std::thread th1([this, pc_flood]()->void{
-		this->flood_depth_proc(pc_flood);
+		this->flood_depth_proc(pc_flood); //depth edge processing and convert to depthmap
 	});
 	std::thread th2([this, img_guide]()->void{
-		this->flood_guide_proc(img_guide);
+		this->flood_guide_proc(img_guide); //guide image processing
 	});
 	th1.join();
 	th2.join();
 	th3.join();
 	if (this->guide_edge_proc_on) {
+		// filtering depthmap by guide edge
 		cv::multiply(this->m_flood_dmap, this->m_guide_edge, this->m_flood_dmap);
 	}
 }
 
+/**
+ * @brief create FGS Filter for spot
+ * 
+ * @param guide: guide image 
+ */
 void upsampling::spot_guide_proc(const cv::Mat& guide)
 {
 	cv::Rect roi = this->m_spot_roi;
@@ -202,6 +254,11 @@ void upsampling::spot_guide_proc(const cv::Mat& guide)
 
 }
 
+/**
+ * @brief depth processing for spot
+ * 
+ * @param pc_spot point cloud of spot 
+ */
 void upsampling::spot_depth_proc(const cv::Mat& pc_spot)
 {
 	cv::Mat dmap = this->m_spot_dmap;
@@ -230,12 +287,32 @@ void upsampling::spot_depth_proc(const cv::Mat& pc_spot)
 	});	
 }
 
+/**
+ * @brief preprocessing for spot
+ * 
+ * @param guide: guide image 
+ * @param pc_spot: point cloud of spot 
+ */
 void upsampling::spot_preprocessing(const cv::Mat& guide, const cv::Mat& pc_spot)
 {
-	this->spot_guide_proc(guide);
-	this->spot_depth_proc(pc_spot);
+	std::thread th1([this, guide]()->void{
+		this->spot_guide_proc(guide); //create FGS filter
+	});
+	std::thread th2([this, pc_spot]()->void{
+		this->spot_depth_proc(pc_spot);
+	});
+	th1.join();
+	th2.join();
 }
 
+/**
+ * @brief full processing for flood 
+ * 
+ * @param img_guide: image guide 
+ * @param pc_flood: point cloud of flood 
+ * @param dense: output dense depthmap 
+ * @param conf: output confidence 
+ */
 void upsampling::run_flood(const cv::Mat& img_guide, const cv::Mat& pc_flood, cv::Mat& dense, cv::Mat& conf)
 {
 #ifdef SHOW_TIME
@@ -256,19 +333,26 @@ void upsampling::run_flood(const cv::Mat& img_guide, const cv::Mat& pc_flood, cv
 	t_start = std::chrono::system_clock::now();
 #endif
 	// cv::Rect roi(0, 0, this->guide_width, this->guide_height);
-	this->fgs_f(img_guide, this->m_flood_dmap, this->m_flood_mask, 
-		this->fgs_lambda_flood_, this->fgs_sigma_color_flood_, 
-		this->fgs_lambda_attenuation_, this->fgs_num_iter_flood, this->m_flood_roi, 
-		dense, conf);
+	this->fgs_f(this->m_flood_dmap, this->m_flood_mask, this->m_flood_roi, 
+				dense, conf);
 #ifdef SHOW_TIME
 	t_end = std::chrono::system_clock::now();
 	elapsed = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count();
 	std::cout << "FGS processing time = " << elapsed << " [us]" << std::endl;
 #endif
+	// fill invalid regions
 	dense.setTo(std::nan(""), this->m_flood_range == 0.0);
 	conf.setTo(std::nan(""), this->m_flood_range == 0.0);
 }
 
+/**
+ * @brief full processing for spot
+ * 
+ * @param img_guide: image guide 
+ * @param pc_spot: point cloud of spot 
+ * @param dense: output dense depthmap 
+ * @param conf: output confidence 
+ */
 void upsampling::run_spot(const cv::Mat& img_guide, const cv::Mat& pc_spot, cv::Mat& dense, cv::Mat& conf)
 {
 #ifdef SHOW_TIME
@@ -289,16 +373,17 @@ void upsampling::run_spot(const cv::Mat& img_guide, const cv::Mat& pc_spot, cv::
 #endif
 	cv::Rect roi(0, 0, this->guide_width, this->guide_height);
 	// upsampling
-	fgs_f(img_guide, m_spot_dmap, m_spot_mask, 
-		this->fgs_lambda_spot_, this->fgs_sigma_color_spot_, 
-		fgs_lambda_attenuation_, fgs_num_iter_spot, roi,
-		dense, conf);
+	fgs_f(m_spot_dmap, m_spot_mask, roi, dense, conf);
 #ifdef SHOW_TIME
 		t_end = std::chrono::system_clock::now();
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
 		std::cout << "FGS spot processing time = " << elapsed << " [ms]" << std::endl;
 #endif
-
+#if 0 // skipped for full region results
+	// fill invalid regions
+	dense.setTo(std::nan(""), this->m_spot_range == 0.0);
+	conf.setTo(std::nan(""), this->m_spot_range == 0.0);
+#endif
 }
 
 /**
@@ -334,20 +419,20 @@ bool upsampling::run(const cv::Mat& img_guide, const cv::Mat& pc_flood, const cv
 			m_mode = 2;
 	}
 
-	if (m_mode == 0) {
+	if (m_mode == 0) { // invalid
 		dense.setTo(std::nan(""));
 		conf.setTo(std::nan(""));
 		return false;
 	}
-	if (m_mode == 1) {
+	if (m_mode == 1) { // flood only
 		this->run_flood(img_guide, pc_flood, dense, conf);
 		return true;
 	}
-	if (m_mode == 2) {
+	if (m_mode == 2) { // spot only
 		this->run_spot(img_guide, pc_spot, dense, conf);
 		return true;
 	}
-	if (m_mode == 3) {
+	if (m_mode == 3) { // flood + spot
 		cv::Mat denseSpot = cv::Mat::zeros(dense.size(), dense.type());
 		cv::Mat confSpot = cv::Mat::zeros(conf.size(), conf.type());
 		this->run_flood(img_guide, pc_flood, dense, conf);

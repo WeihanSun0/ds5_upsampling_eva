@@ -80,9 +80,7 @@ public:
 private:
 	void clear();
 	void initialization(cv::Mat& dense, cv::Mat& conf);
-	void fgs_f(const cv::Mat & guide, const cv::Mat & sparse, const cv::Mat& mask, 
-					float fgs_lambda, float fgs_simga_color, float fgs_lambda_attenuation, 
-					float fgs_num_iter, const cv::Rect& roi, 
+	void fgs_f(const cv::Mat & sparse, const cv::Mat& mask, const cv::Rect& roi, 
 					cv::Mat& dense, cv::Mat& conf);
 	void spot_guide_proc(const cv::Mat& guide);
 	void spot_depth_proc(const cv::Mat& pc_spot);
@@ -112,7 +110,7 @@ private:
 	cv::Rect m_flood_roi;
 	cv::Rect m_spot_roi;
 	// FGS parameters
-	double fgs_lambda_flood_ = 24;
+	double fgs_lambda_flood_ = 48;
 	double fgs_sigma_color_flood_ = 8;
 	double fgs_lambda_attenuation_ = 0.25;
 	double fgs_lambda_spot_ = 700;
@@ -133,11 +131,11 @@ private:
 	// flood preprocessing paramters
 	int m_guide_edge_dilate_size = 5; // dilate size of guide image edge
 	float m_dist_thresh = 0.5; // (mm) max distance for preprocessing
-	float m_depth_edge_thresh = 0.7; // threshold for depth edge
-	float m_canny_low_thresh = 80;
-	float m_canny_high_thresh = 150;
-	// processing flag
+	float m_depth_edge_thresh = 0.9; // threshold for depth edge
+	float m_canny_low_thresh = 45;
+	float m_canny_high_thresh = 160;
 	float m_max_depth_edge_thresh = 3.0;
+	// processing flag
 	bool depth_edge_proc_on = true;
 	bool guide_edge_proc_on = true;
 	cv::Ptr<cv::ximgproc::FastGlobalSmootherFilter> m_fgs_filter;

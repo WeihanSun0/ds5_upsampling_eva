@@ -21,9 +21,6 @@ using namespace std;
 
 const string rootPath = "../../";
 const string strDataPath = rootPath + "dat/real/hand_test";
-
-const string strFloodPc = strDataPath + "/0001_flood_pc.tiff";
-const string strSpotPc = strDataPath + "/0001_spot_pc.tiff";
 const string strParam = rootPath + "dat/real/camParam/camera_calib/param.txt";
 
 float g_FPS = 0.0;
@@ -147,7 +144,7 @@ int main(int argc, char* argv[])
         cv::Mat dmapSpot = dc.get_spot_depthMap();
         imgShow = visualization(imgGuide, dmapFlood, dmapSpot, dense, conf);
         cv::imshow("show", imgShow);
-        char c= cv::waitKey(100);
+        char c= cv::waitKey(30);
         switch (c)
         {
         case '1':
@@ -161,6 +158,12 @@ int main(int argc, char* argv[])
             break;
         case 'q':
             mode = 'q';
+            break;
+        case 's':
+            sprintf(szFN, "%s/%08d_dense_dmap.tiff", strDataPath.c_str(), frame_num);
+            cv::imwrite(szFN, dense);
+            sprintf(szFN, "%s/%08d_conf.tiff", strDataPath.c_str(), frame_num);
+            cv::imwrite(szFN, conf);
             break;
         default:
             break;
