@@ -21,6 +21,109 @@ upsampling::upsampling()
 }
 
 /**
+ * @brief set upsampling parameters
+ * 
+ * @param fgs_lambda_flood  
+ * @param fgs_sigma_flood 
+ * @param fgs_lambda_spot 
+ * @param fgs_sigma_spot 
+ * @param fgs_num_iter_flood 
+ * @param fgs_num_iter_spot 
+ */
+void upsampling::set_upsampling_parameters(double fgs_lambda_flood, double fgs_sigma_flood, 
+											double fgs_lambda_spot, double fgs_sigma_spot,
+											int fgs_num_iter_flood, int fgs_num_iter_spot) 
+{ 
+	this->fgs_lambda_flood_ = fgs_lambda_flood; 
+	this->fgs_sigma_color_flood_ = fgs_sigma_flood; 
+	this->fgs_lambda_spot_ = fgs_lambda_spot; 
+	this->fgs_sigma_color_spot_ = fgs_sigma_spot; 
+	this->fgs_num_iter_flood = fgs_num_iter_flood;
+	this->fgs_num_iter_spot = fgs_num_iter_spot;
+	if (this->fgs_lambda_flood_ < 1) this->fgs_lambda_flood_ = 1;
+	if (this->fgs_sigma_color_flood_ < 1) this->fgs_sigma_color_flood_ = 1;
+	if (this->fgs_num_iter_flood < 1) this->fgs_num_iter_flood = 1;
+	if (this->fgs_num_iter_flood > 5) this->fgs_num_iter_flood = 5;
+	if (this->fgs_num_iter_spot < 1) this->fgs_num_iter_spot = 1;
+	if (this->fgs_num_iter_spot > 5) this->fgs_num_iter_spot = 5;
+};
+
+
+/**
+ * @brief get default upsampling parameters 
+ * 
+ * @param fgs_lambda_flood 
+ * @param fgs_sigma_flood 
+ * @param fgs_lambda_spot 
+ * @param fgs_sigma_spot 
+ * @param fgs_num_iter_flood 
+ * @param fgs_num_iter_spot 
+ */
+void upsampling::get_default_upsampling_parameters(double& fgs_lambda_flood, double& fgs_sigma_flood, 
+													double& fgs_lambda_spot, double& fgs_sigma_spot, 
+													int& fgs_num_iter_flood, int& fgs_num_iter_spot)
+{
+	fgs_lambda_flood = this->fgs_lambda_flood_;
+	fgs_sigma_flood = this->fgs_sigma_color_flood_;
+	fgs_lambda_spot = this->fgs_lambda_spot_;
+	fgs_sigma_spot = this->fgs_sigma_color_spot_;
+	fgs_num_iter_flood = this->fgs_num_iter_flood;
+	fgs_num_iter_spot = this->fgs_num_iter_spot;
+}
+
+/**
+ * @brief set preprocessing parameters
+ * 
+ * @param edge_dilate_size : guide edge dilate size 
+ * @param edge_threshold : depth edge threshold 
+ * @param canny_low_threshold : canny filter low threshold 
+ * @param canny_high_threshold : canny filter high threshold 
+ * @param flood_range : valid range for flood upsampling
+ */
+void upsampling::set_preprocessing_parameters(int edge_dilate_size, float edge_threshold, 
+											int canny_low_threshold, int canny_high_threshold,
+											int flood_range)
+{
+	this->m_guide_edge_dilate_size = edge_dilate_size;
+	this->m_depth_edge_thresh = edge_threshold;
+	this->m_canny_low_thresh = canny_low_threshold;
+	this->m_canny_high_thresh = canny_high_threshold;
+	this->range_flood = flood_range;
+	if (edge_threshold > this->m_max_depth_edge_thresh)
+		this->depth_edge_proc_on = false;
+	else
+		this->depth_edge_proc_on = true;
+	if (canny_low_threshold > canny_high_threshold)
+		this->guide_edge_proc_on = false;
+	else
+		this->guide_edge_proc_on = true;
+	// checkerror
+	if (this->range_flood < 2) this->range_flood = 2;
+	if (this->m_guide_edge_dilate_size < 1) this->m_guide_edge_dilate_size = 1;
+	if (this->m_depth_edge_thresh <= 0) this->m_depth_edge_thresh = 0.01;
+};
+
+/**
+ * @brief get default preprocessing parameters
+ * 
+ * @param edge_dilate_size 
+ * @param edge_threshold 
+ * @param canny_low_threshold 
+ * @param canny_high_threshold 
+ * @param flood_range 
+ */
+void upsampling::get_default_preprocessing_parameters(int& edge_dilate_size, float& edge_threshold,
+								int& canny_low_threshold, int& canny_high_threshold, int& flood_range)
+{
+	edge_dilate_size = this->m_guide_edge_dilate_size; 
+	edge_threshold = this->m_depth_edge_thresh ;
+	canny_low_threshold = this->m_canny_low_thresh;
+	canny_high_threshold = this->m_canny_high_thresh;
+	flood_range = this->range_flood;
+};
+
+
+/**
  * @brief clear buffers
  * 
  */
@@ -67,7 +170,7 @@ void upsampling::initialization(cv::Mat& dense, cv::Mat& conf)
  * @param dense: output dense depth 
  * @param conf: output confidence 
  */
-void upsampling::fgs_f(const cv::Mat & sparse, const cv::Mat& mask, const cv::Rect& roi, 
+void upsampling::fgs_f(const cv::Mat & sparse, const cv::Mat& mask, const cv::Rect& roi, const float& lambda,
 					cv::Mat& dense, cv::Mat& conf)
 {
 	cv::Mat matSparse, matMask;
@@ -75,7 +178,8 @@ void upsampling::fgs_f(const cv::Mat & sparse, const cv::Mat& mask, const cv::Re
 	this->m_fgs_filter->filter(sparse(roi), matSparse);
 	this->m_fgs_filter->filter(mask(roi), matMask);
 	dense(roi) = matSparse / matMask;
-	conf(roi) = matMask;
+	conf(roi) = matMask * lambda * 10;
+	conf.setTo(1.0, conf > 1.0);
 }
 
 /**
@@ -263,8 +367,6 @@ void upsampling::spot_depth_proc(const cv::Mat& pc_spot)
 {
 	cv::Mat dmap = this->m_spot_dmap;
 	cv::Mat mask = this->m_spot_mask;
-	cv::Mat range = this->m_spot_range;
-	int r = this->range_spot;
 	int width = this->guide_width;
 	int height = this->guide_height;
 	float cx = this->cx_;
@@ -272,7 +374,7 @@ void upsampling::spot_depth_proc(const cv::Mat& pc_spot)
 	float fx = this->fx_;
 	float fy = this->fy_;
 
-	pc_spot.forEach<cv::Vec3f>([&dmap, &mask, &range, width, height, cx, cy, fx, fy, r]
+	pc_spot.forEach<cv::Vec3f>([&dmap, &mask, width, height, cx, cy, fx, fy]
 								(cv::Vec3f& p, const int* pos) -> void{
 		float z = p[2];
 		float uf = (p[0] * fx / z) + cx;
@@ -282,7 +384,6 @@ void upsampling::spot_depth_proc(const cv::Mat& pc_spot)
 		if (u >= 0 && u < width && v >= 0 && v < height) {
 			dmap.at<float>(v, u) = z;
 			mask.at<float>(v, u) = 1.0;
-			mark_block(range, u, v, r);
 		}
 	});	
 }
@@ -333,7 +434,7 @@ void upsampling::run_flood(const cv::Mat& img_guide, const cv::Mat& pc_flood, cv
 	t_start = std::chrono::system_clock::now();
 #endif
 	// cv::Rect roi(0, 0, this->guide_width, this->guide_height);
-	this->fgs_f(this->m_flood_dmap, this->m_flood_mask, this->m_flood_roi, 
+	this->fgs_f(this->m_flood_dmap, this->m_flood_mask, this->m_flood_roi, this->fgs_lambda_flood_,
 				dense, conf);
 #ifdef SHOW_TIME
 	t_end = std::chrono::system_clock::now();
@@ -371,9 +472,9 @@ void upsampling::run_spot(const cv::Mat& img_guide, const cv::Mat& pc_spot, cv::
 #ifdef SHOW_TIME
 	t_start = std::chrono::system_clock::now();
 #endif
-	cv::Rect roi(0, 0, this->guide_width, this->guide_height);
 	// upsampling
-	fgs_f(m_spot_dmap, m_spot_mask, roi, dense, conf);
+	fgs_f(this->m_spot_dmap, this->m_spot_mask, this->m_spot_roi, this->fgs_lambda_spot_, 
+		dense, conf);
 #ifdef SHOW_TIME
 		t_end = std::chrono::system_clock::now();
 		elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();

@@ -17,62 +17,23 @@ public:
 		fx_ = fx;
 		fy_ = fy;
 	}
-	// upsampling paramter
-	void set_upsampling_parameters(float fgs_lambda_flood, float fgs_sigma_flood, 
-									float fgs_lambda_spot, float fgs_sigma_spot) 
-	{ 
-		this->fgs_lambda_flood_ = fgs_lambda_flood; 
-		this->fgs_sigma_color_flood_ = fgs_sigma_flood; 
-		this->fgs_lambda_spot_ = fgs_lambda_spot; 
-		this->fgs_sigma_color_spot_ = fgs_sigma_spot; 
-	};
-
-	void get_default_upsampling_parameters(float& fgs_lambda_flood, float& fgs_sigma_flood, 
-									float& fgs_lambda_spot, float& fgs_sigma_spot)
-	{
-		fgs_lambda_flood = this->fgs_lambda_flood_;
-		fgs_sigma_flood = this->fgs_sigma_color_flood_;
-		fgs_lambda_spot = this->fgs_lambda_spot_;
-		fgs_sigma_spot = this->fgs_sigma_color_spot_;
-		if (this->fgs_lambda_flood_ < 4) this->fgs_lambda_flood_ = 4;
-		if (this->fgs_sigma_color_flood_ < 1) this->fgs_sigma_color_flood_ = 1;
-	}
-
+	// paramter setting
+	void set_upsampling_parameters(double fgs_lambda_flood, double fgs_sigma_flood, 
+									double fgs_lambda_spot, double fgs_sigma_spot,
+									int fgs_num_iter_flood, int fgs_num_iter_spot); 
+	void get_default_upsampling_parameters(double& fgs_lambda_flood, double& fgs_sigma_flood, 
+										double& fgs_lambda_spot, double& fgs_sigma_spot, 
+										int& fgs_num_iter_flood, int& fgs_num_iter_spot);
 	void set_preprocessing_parameters(int edge_dilate_size, float edge_threshold, 
-									int canny_low_threshold, int canny_high_threshold,
-									int flood_range)
-	{
-		this->m_guide_edge_dilate_size = edge_dilate_size;
-		this->m_depth_edge_thresh = edge_threshold;
-		this->m_canny_low_thresh = canny_low_threshold;
-		this->m_canny_high_thresh = canny_high_threshold;
-		this->range_flood = flood_range;
-		if (edge_threshold > this->m_max_depth_edge_thresh)
-			this->depth_edge_proc_on = false;
-		else
-			this->depth_edge_proc_on = true;
-		if (canny_low_threshold > canny_high_threshold)
-			this->guide_edge_proc_on = false;
-		else
-			this->guide_edge_proc_on = true;
-		// checkerror
-		if (this->range_flood < 2) this->range_flood = 2;
-		if (this->m_guide_edge_dilate_size < 1) this->m_guide_edge_dilate_size = 1;
-		if (this->m_depth_edge_thresh <= 0) this->m_depth_edge_thresh = 0.01;
-	};
+										int canny_low_threshold, int canny_high_threshold,
+										int flood_range);
 
 	void get_default_preprocessing_parameters(int& edge_dilate_size, float& edge_threshold,
-									int& canny_low_threshold, int& canny_high_threshold, int& flood_range)
-	{
-		edge_dilate_size = this->m_guide_edge_dilate_size; 
-		edge_threshold = this->m_depth_edge_thresh ;
-		canny_low_threshold = this->m_canny_low_thresh;
-		canny_high_threshold = this->m_canny_high_thresh;
-		flood_range = this->range_flood;
-	};
-
+										int& canny_low_threshold, int& canny_high_threshold, 
+										int& flood_range);	
 	// main processing
 	bool run(const cv::Mat& rgb, const cv::Mat& flood_pc, const cv::Mat& spot_pc, cv::Mat& dense, cv::Mat& conf);
+	// for show depthmap
 	cv::Mat get_flood_depthMap() {return this->m_flood_dmap;};
 	cv::Mat get_spot_depthMap() {return this->m_spot_dmap;};
 	// convert depth map to point cloud
@@ -80,7 +41,7 @@ public:
 private:
 	void clear();
 	void initialization(cv::Mat& dense, cv::Mat& conf);
-	void fgs_f(const cv::Mat & sparse, const cv::Mat& mask, const cv::Rect& roi, 
+	void fgs_f(const cv::Mat & sparse, const cv::Mat& mask, const cv::Rect& roi, const float& lambda, 
 					cv::Mat& dense, cv::Mat& conf);
 	void spot_guide_proc(const cv::Mat& guide);
 	void spot_depth_proc(const cv::Mat& pc_spot);
@@ -110,18 +71,18 @@ private:
 	cv::Rect m_flood_roi;
 	cv::Rect m_spot_roi;
 	// FGS parameters
-	double fgs_lambda_flood_ = 48;
-	double fgs_sigma_color_flood_ = 8;
+	double fgs_lambda_flood_ = 48; // 0.1~100
+	double fgs_sigma_color_flood_ = 8; // 1~20
 	double fgs_lambda_attenuation_ = 0.25;
-	double fgs_lambda_spot_ = 700;
-	double fgs_sigma_color_spot_ = 5;
-	int fgs_num_iter_flood = 1;
-	int fgs_num_iter_spot = 3;
+	double fgs_lambda_spot_ = 700; // 1~1000
+	double fgs_sigma_color_spot_ = 5; // 1~20
+	int fgs_num_iter_flood = 1; //1~5
+	int fgs_num_iter_spot = 3; //1
 
-	float conf_thresh_ = 0.00f;
+	// float conf_thresh_ = 0.00f; // 0~1
 	// upsampling paramters
-	int range_flood = 20;
-	int range_spot = 50;
+	int range_flood = 20; // 2~40
+	// int range_spot = 50; // 
 	// camera paramters
 	float fx_ = 135.51;
 	float fy_ = 135.51;
@@ -132,8 +93,8 @@ private:
 	int m_guide_edge_dilate_size = 5; // dilate size of guide image edge
 	float m_dist_thresh = 0.5; // (mm) max distance for preprocessing
 	float m_depth_edge_thresh = 0.9; // threshold for depth edge
-	float m_canny_low_thresh = 45;
-	float m_canny_high_thresh = 160;
+	int m_canny_low_thresh = 45;
+	int m_canny_high_thresh = 160;
 	float m_max_depth_edge_thresh = 3.0;
 	// processing flag
 	bool depth_edge_proc_on = true;

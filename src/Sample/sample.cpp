@@ -89,8 +89,11 @@ int main(int argc, char* argv[])
     dc.set_cam_paramters(cx, cy, fx, fy);
 
     // get default parameters
-    float fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot;
-    dc.get_default_upsampling_parameters(fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot);
+    double fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot;
+    int fgs_num_iter_flood, fgs_num_iter_spot;
+    dc.get_default_upsampling_parameters(fgs_lambda_flood, fgs_sigma_flood, 
+                                        fgs_lambda_spot, fgs_sigma_spot,
+                                        fgs_num_iter_flood, fgs_num_iter_spot);
     int edge_dilate_size, canny_thresh1, canny_thresh2, flood_range;
     float edge_thresh;
     dc.get_default_preprocessing_parameters(edge_dilate_size, edge_thresh, canny_thresh1, canny_thresh2, flood_range);
@@ -104,9 +107,10 @@ int main(int argc, char* argv[])
     cv::createTrackbar("canny thresh1", "show", &canny_thresh1, 255); // 0~255
     cv::createTrackbar("canny thresh2", "show", &canny_thresh2, 255); // 0~255
     cv::createTrackbar("edge_thresh", "show", &iEdge_thresh, 400); // 0~200
-    cv::createTrackbar("flood_range", "show", &flood_range, 40); // 0~200
-    cv::createTrackbar("fgs_lambda", "show", &iFgs_lambda_flood, 300);
+    cv::createTrackbar("flood_range", "show", &flood_range, 40); 
+    cv::createTrackbar("fgs_lambda", "show", &iFgs_lambda_flood, 1000);
     cv::createTrackbar("fgs_sigma", "show", &iFgs_simga_flood, 20);
+    cv::createTrackbar("iter_num", "show", &fgs_num_iter_flood, 5);
 
 
     char mode = '1'; // 1: flood 2: spot 3: flood + spot
@@ -115,10 +119,12 @@ int main(int argc, char* argv[])
 #endif
     while(1) {
         edge_thresh = (float)iEdge_thresh/100;
-        fgs_lambda_flood = (float)iFgs_lambda_flood;
+        fgs_lambda_flood = (float)iFgs_lambda_flood/10;
         fgs_sigma_flood = (float)iFgs_simga_flood;
-        dc.set_upsampling_parameters(fgs_lambda_flood, fgs_sigma_flood, fgs_lambda_spot, fgs_sigma_spot); 
-        dc.set_preprocessing_parameters(edge_dilate_size, edge_thresh, canny_thresh1, canny_thresh2, flood_range);
+        dc.set_upsampling_parameters(fgs_lambda_flood, fgs_sigma_flood, 
+                            fgs_lambda_spot, fgs_sigma_spot, fgs_num_iter_flood, fgs_num_iter_spot); 
+        dc.set_preprocessing_parameters(edge_dilate_size, edge_thresh, 
+                            canny_thresh1, canny_thresh2, flood_range);
 #ifdef SHOW_TIME
         t_start = chrono::system_clock::now();
 #endif 
